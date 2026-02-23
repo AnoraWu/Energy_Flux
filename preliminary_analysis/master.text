@@ -1,0 +1,2 @@
+python ssf_clean.py
+stata ssf_merge_cloudseeding.do
