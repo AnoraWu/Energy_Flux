@@ -9,17 +9,17 @@ import pandas as pd
 import numpy as np
 import os
 import warnings
+import matplotlib.pyplot as plt
 from shapely.geometry import box
 from pyproj import Transformer
 
-
-# Change to your rawdata directory
-os.chdir('/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora')
+data_dir = os.environ['DATA_DIR']
+check = os.environ['CHECK']
 
 ### CONSTRUCT GRID ###
 
 # Load and project JX polygon to EPSG:32650 
-jx_poly = gpd.read_file('jiangxi/jiangxi_shape.shp').geometry.iloc[0]
+jx_poly = gpd.read_file(f"{data_dir}/jiangxi_shapefile/jiangxi_shape.shp").geometry.iloc[0]
 # Original jx_poly was in "EPSG:4326", convert it to "EPSG:32650" to construct grids in kilometers
 # "EPSG:32650" is used between between 114°E and 120°E
 jx_poly_proj = gpd.GeoSeries([jx_poly], crs="EPSG:4326").to_crs("EPSG:32650").iloc[0]
@@ -27,7 +27,7 @@ jx_poly_proj = gpd.GeoSeries([jx_poly], crs="EPSG:4326").to_crs("EPSG:32650").il
 # Calculate the bound of JX province            
 minx, miny, maxx, maxy = jx_poly_proj.bounds              
 
-# Bins for 5km grid
+# Bins for 5km (5000m) grid
 grid_size = 5000
 # Create boundaries for grids
 # The last bin created by np.arange will cover the maxx and maxy
@@ -53,27 +53,35 @@ with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=RuntimeWarning, message= "invalid value encountered in intersects")
     jx_grid = jx_grid[jx_grid.geometry.intersection(jx_poly_proj).area > 0]
 
+# Plot the shape of Jiangxi and grids to check
+if check == True:
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_title('Jiangxi Shapefile and Grids', fontsize=15, fontweight='bold')
+
+    jx_grid.plot(ax=ax, color='black', edgecolor=None)
+    jx_poly_proj_geoseries = gpd.GeoSeries([jx_poly_proj], crs="EPSG:32650")
+    jx_poly_proj_geoseries.plot(ax=ax, color='blue', marker='o', markersize=5)
+
+    plt.tight_layout()
+    plt.savefig(f"{data_dir}/check/jiangxi_and_grids.png", dpi=150)
+    plt.close()
+
 # Save as GeoPackage 
-jx_grid.to_file("jiangxi/jx_grid.gpkg", layer='grid', driver="GPKG")
+jx_grid.to_file(f"{data_dir}/intermediate/jx_grid.gpkg", layer='grid', driver="GPKG")
 
 # Save as CSV for later use
 df = pd.DataFrame(jx_grid.drop(columns='geometry'))
-df.to_csv("jiangxi/jx_grid.csv", index=False)
+df.to_csv(f"{data_dir}/intermediate/jx_grid.csv", index=False)
 
 
 ### FILL IN OPERATION DATA ###
 
-operation_data = pd.read_csv('operation/cleaned_data.csv')
+operation_data = pd.read_csv(f"{data_dir}/intermediate/cleaned_operation.csv")
 
 # Correct one mistake in the data
 condition = (operation_data['date'] == "2022-10-27") & (operation_data['start_time'] == "09:42") & (operation_data['city_o'] == "九江市")
 operation_data.loc[condition, 'lon'] = 115.56
 operation_data.loc[condition, 'lat'] = 29.043
-
-# Add year and day of year to operation data
-operation_data['date'] = pd.to_datetime(operation_data['date'])
-operation_data['day'] = operation_data['date'].dt.dayofyear
-operation_data['year'] = operation_data['date'].dt.year
 
 # Transfer lat and lon to EPSG:32650
 # "always_xy=True" ensures using the traditional GIS order, 
@@ -98,6 +106,33 @@ operation_data['cell_id'] = (
 valid_cells = set(jx_grid['cell_id'])
 operation_data = operation_data[operation_data['cell_id'].isin(valid_cells)]
 
+# If True, check the cell id as well as spacial distribution of operations
+if check == "True":
+
+    # Check the cell id by using sjoin to find id 
+    operation_data_geodata = gpd.GeoDataFrame(
+    operation_data, 
+    geometry=gpd.points_from_xy(operation_data['xs'], operation_data['ys']),
+    crs="EPSG:32650" 
+    )
+    joined_operation = gpd.sjoin(operation_data_geodata, jx_grid, how="left", predicate="within")
+    if len(joined_operation[joined_operation['cell_id_right']!=joined_operation['cell_id_left']]) != 0:
+        print("Error: the cell ids for operation data is not correct")
+
+    # Plot spacial distribution of operations
+    point_counts = joined_operation.groupby("cell_id_right").size().reset_index(name="operation_count")
+    joined_grid = jx_grid.merge(point_counts, left_on="cell_id", right_on="cell_id_right", how="left")
+    joined_grid["operation_count"] = joined_grid["operation_count"].fillna(0).astype(int)
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_title('Number of operations in each grid', fontsize=15, fontweight='bold')
+    joined_grid.plot(column="operation_count", legend=True, cmap="OrRd", ax=ax)
+
+    plt.tight_layout()
+    plt.savefig(f"{data_dir}/check/spacial_distribution_operations.png", dpi=150)
+    plt.close()
+
+
 # Construct panel
 date_range = pd.date_range(start='2020-01-01', end='2025-12-31', freq='D')
 dates_df = pd.DataFrame({'date': date_range})
@@ -119,5 +154,5 @@ final_panel = pd.merge(panel_df, op_counts, on=['date', 'cell_id'], how='left')
 final_panel['op_count'] = final_panel['op_count'].fillna(0).astype(int)
 final_grid = pd.merge(final_panel, jx_grid, on=['cell_id'], how='left')
 
-final_grid.to_csv("intermediate/grid_1.csv")
+final_grid.to_csv(f"{data_dir}/intermediate/grid_with_operation.csv")
 
