@@ -67,6 +67,7 @@ if check == True:
     plt.close()
 
 # Save as GeoPackage 
+# EPSG:32650
 jx_grid.to_file(f"{data_dir}/intermediate/jx_grid.gpkg", layer='grid', driver="GPKG")
 
 # Save as CSV for later use
