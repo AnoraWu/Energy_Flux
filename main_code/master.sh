@@ -22,16 +22,18 @@ export CHECK=True
 # CHANGE TO YOUR OWN DIRECTORY 
 cd "/Users/anora/Documents/Github/Energy_Flux/main_code"
 
-# clean_town_operation.py
+### clean_town_operation.py
 # Purpose: clean and combine town operation data from 2021 to 2025. 
 # Input: 
 # 1. {data_fir}/operation/{year}.xls
 # 2. {data_fir}/operation/{year}.xlsx
 # Output:
 # 1. {data_fir}/intermediate/cleaned_operation.csv
+
 # python clean_town_operation.py
 
-# merge_town_to_grid.py
+
+### merge_town_to_grid.py
 # Purpose: create grids used for analysis; merge the operation data into the panel structure (grid by date).
 # Input:
 # 1. {data_dir}/jiangxi_shapefile/jiangxi_shape.shp
@@ -40,5 +42,7 @@ cd "/Users/anora/Documents/Github/Energy_Flux/main_code"
 # 1. {data_dir}/intermediate/jx_grid.gpkg
 # 2. {data_dir}/intermediate/jx_grid.csv
 # 3. {data_dir}/intermediate/grid_with_operation.csv
-python merge_town_to_grid.py
+
+# python merge_town_to_grid.py
+
 
