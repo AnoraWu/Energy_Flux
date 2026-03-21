@@ -82,18 +82,17 @@ for i in range(2021,2026):
 joined_2021_2025 = pd.concat(data_list_2021_2025, ignore_index=True)
 data = pd.concat([joined_2021_2025, joined_2020], ignore_index=True)
 
-# Creat year, month, day columns
+# Create date columns
 data['date'] = pd.to_datetime(data['date'])
-data['day'] = data['date'].dt.dayofyear
-data['month'] = data['date'].dt.month
-data['year'] = data['date'].dt.year
 
 # Drop index column
 data.drop(columns=['index_right'],inplace=True)
 
 # Test by drawing histogram
 if check == "True":
-    year_counts = data['year'].value_counts().sort_index()
+    data_temp = data
+    data_temp['year'] = data_temp.date.dt.year
+    year_counts = data_temp['year'].value_counts().sort_index()
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.bar(year_counts.index, year_counts.values, color='#4C72B0', edgecolor='white')
