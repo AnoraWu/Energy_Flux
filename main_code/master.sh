@@ -30,7 +30,7 @@ cd "/Users/anora/Documents/Github/Energy_Flux/main_code"
 # Output:
 # 1. {data_fir}/intermediate/cleaned_operation.csv
 
-# python clean_town_operation.py
+python clean_town_operation.py
 
 
 ### merge_town_to_grid.py
