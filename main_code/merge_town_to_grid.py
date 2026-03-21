@@ -50,11 +50,11 @@ jx_grid = gpd.GeoDataFrame(polygons, crs="EPSG:32650")
 
 # Filtering out grids outside JX, only keeping grids whose area of intersection with JX is larger than 0
 with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=RuntimeWarning, message= "invalid value encountered in intersects")
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
     jx_grid = jx_grid[jx_grid.geometry.intersection(jx_poly_proj).area > 0]
 
 # Plot the shape of Jiangxi and grids to check
-if check == True:
+if check == "True":
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.set_title('Jiangxi Shapefile and Grids', fontsize=15, fontweight='bold')
 
@@ -134,26 +134,61 @@ if check == "True":
     plt.close()
 
 
-# Construct panel
-date_range = pd.date_range(start='2020-01-01', end='2025-12-31', freq='D')
-dates_df = pd.DataFrame({'date': date_range})
-dates_df['year'] = dates_df['date'].dt.year
-dates_df['month'] = dates_df['date'].dt.month
-dates_df['day'] = dates_df['date'].dt.day
+# Construct two operation data set - one using start time and one using end time
+# Use start time as operation time
+operation_data_start = operation_data.copy()
+operation_data_start['time'] = pd.to_datetime(
+    operation_data_start['date'].astype(str) + ' ' +
+    operation_data_start['start_time'].astype(str), format='mixed' 
+)
+operation_data_start['time'] = operation_data_start['time'].dt.floor('h')
 
-grid_ids = jx_grid[['cell_id']].copy()
-dates_df['key'] = 1
-grid_ids['key'] = 1
-panel_df = pd.merge(dates_df, grid_ids, on='key').drop('key', axis=1)
+# Use end time as operation time
+# Need to tackle cases such that operation starts at night and ends in the next day
+operation_data_end = operation_data.copy()
+
+# If end_time is earlier than start_time, the operation likely crossed midnight
+operation_data_end['start_dt'] = pd.to_datetime(
+    operation_data_end['date'].astype(str) + ' ' +
+    operation_data_end['start_time'].astype(str), format='mixed'
+)
+operation_data_end['end_dt'] = pd.to_datetime(
+    operation_data_end['date'].astype(str) + ' ' +
+    operation_data_end['end_time'].astype(str), format='mixed'
+)
+
+# Add a day when end is before start
+crosses_midnight = operation_data_end['end_dt'] < operation_data_end['start_dt']
+operation_data_end.loc[crosses_midnight, 'end_dt'] += pd.Timedelta(days=1)
+operation_data_end['time'] = operation_data_end['end_dt'].dt.floor('h')
 
 # Count operation times
-op_counts = operation_data.groupby(['date', 'cell_id']).size().reset_index(name='op_count')
-op_counts['date'] = pd.to_datetime(op_counts['date'])
+op_counts_end = operation_data_end.groupby(['time','cell_id']).size().reset_index(name='op_count_end')
+op_counts_start = operation_data_start.groupby(['time','cell_id']).size().reset_index(name='op_count_start')
 
-# Merge into the grid
-final_panel = pd.merge(panel_df, op_counts, on=['date', 'cell_id'], how='left')
-final_panel['op_count'] = final_panel['op_count'].fillna(0).astype(int)
-final_grid = pd.merge(final_panel, jx_grid, on=['cell_id'], how='left')
+# Construct panel by year - a dataset of 6 years in total would be too large to be efficient
+for which_year in range(2020,2026):
 
-final_grid.to_csv(f"{data_dir}/intermediate/grid_with_operation.csv")
+    # create empty panel
+    # hourly frequency as discussed with Cael
+    date_range = pd.date_range(start=f'{which_year}-01-01', end=f'{which_year+1}-01-01', freq='h', inclusive='left')
+    dates_df = pd.DataFrame({'time': date_range})
+    dates_df['year'] = dates_df['time'].dt.year
+    dates_df['day_of_year'] = dates_df['time'].dt.day_of_year
+    dates_df['hour'] = dates_df['time'].dt.hour
+
+    grid_ids = jx_grid[['cell_id']].copy()
+    dates_df['key'] = 1
+    grid_ids['key'] = 1
+    panel_df = pd.merge(dates_df, grid_ids, on='key').drop('key', axis=1)
+
+    # Merge into the grid
+    final_panel = pd.merge(panel_df, op_counts_end, on=['time', 'cell_id'], how='left')
+    final_panel = pd.merge(final_panel, op_counts_start, on=['time', 'cell_id'], how='left')
+    final_panel['op_count_end'] = final_panel['op_count_end'].fillna(0).astype(int)
+    final_panel['op_count_start'] = final_panel['op_count_start'].fillna(0).astype(int)
+    jx_grid_c = jx_grid.drop(columns='geometry')
+    final_grid = pd.merge(final_panel, jx_grid_c, on=['cell_id'], how='left')
+
+    final_grid.to_csv(f"{data_dir}/intermediate/grid_with_operation_{which_year}.csv", index=False)
 
