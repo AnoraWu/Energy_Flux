@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=download_2020           # Name shown in squeue
-#SBATCH --output=/project/mgreenst/energy_flux/code/log/download_2020_1_100.out  # Where stdout goes
-#SBATCH --error=/project/mgreenst/energy_flux/code/log/download_2020_1_100.err   # Where stderr goes
+#SBATCH --output=/project/mgreenst/energy_flux/code/log/download_2020_1-100.out  # Where stdout goes
+#SBATCH --error=/project/mgreenst/energy_flux/code/log/download_2020_1-100.err   # Where stderr goes
 #SBATCH --account=pi-mgreenst             # Allocation account to bill
 #SBATCH --partition=caslake               # Which cluster partition to use
 #SBATCH --time=24:00:00                   # Max wall time (job killed after this)
