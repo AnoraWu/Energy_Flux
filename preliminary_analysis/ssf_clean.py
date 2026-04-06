@@ -35,8 +35,11 @@ def clean_nc_file(file, districts):
         ds_masked = ds.isel(time=mask)  
         print("masked")
 
+        if len(ds_masked) == 0:
+            return None
+
         # Created combined group of region and time
-        region_vals = ds_masked["region"].values
+        region_vals = ds_masked["region"].values.astype(int)
         date_vals = ds_masked["date"].values
         combined_labels = [f"{r}_{d}" for r, d in zip(region_vals, date_vals)]
         ds_masked["combined_group"] = xr.DataArray(combined_labels, dims=["time"])
@@ -61,12 +64,13 @@ def clean_nc_file(file, districts):
         df_temp = ds_selected.to_dataframe()
         print("converted")
 
-        # set CERES_SW_TOA_flux___upwards and CERES_SW_radiance___upwards to NaN if zero
+        # Set CERES_SW_TOA_flux___upwards and CERES_SW_radiance___upwards to NaN if zero
+        # Excluding nighttime flux values
         cols = ["CERES_SW_TOA_flux___upwards",
                 "CERES_SW_radiance___upwards",
                 "CERES_net_SW_surface_flux___Model_B",
                 "CERES_solar_zenith_at_surface"]
-        df_temp.loc[df_temp["CERES_solar_zenith_at_surface"] > 90, cols] = np.nan
+        df_temp.loc[df_temp["CERES_solar_zenith_at_surface"] >= 90, cols] = np.nan
         # normalize the flux variables
         df_temp["cos_solar"] = np.cos(np.deg2rad(df_temp["CERES_solar_zenith_at_surface"]))
         # create normalized versions
@@ -94,7 +98,7 @@ if __name__ == "__main__":
     all_files = os.listdir(path) 
     data_files_terra = [file for file in all_files if file.find("CERES_SSF_Terra-XTRK_Edition4A_Subset")!=-1]
 
-    # Load the county-level district file
+    # Load the county-level district file (district data provided by Xiaohan)
     county_gdf = gpd.read_file(os.path.dirname(os.getcwd()) + "/district/district.shp")
     county_gdf = county_gdf.to_crs("EPSG:4326")
 
@@ -104,6 +108,7 @@ if __name__ == "__main__":
     with Pool(9) as pool:
         df_list = pool.starmap(clean_nc_file, map_iterables)
     
+    df_list = [df for df in df_list if df is not None]
     df = pd.concat(df_list)
     output_path = os.path.dirname(os.path.dirname(os.getcwd())) + '/intermediate/combined_ssf.csv'
     df.to_csv(output_path, index=False)
