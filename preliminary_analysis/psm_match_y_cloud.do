@@ -20,7 +20,7 @@ else if c(username)=="AW" {
 	global dir "F:\dropbox\Dropbox\Cloud Seeding"
 }
 else if c(username) == "anora"{
-	global dir "/Users/anora/Library/CloudStorage/Dropbox-TeamMG/Wanru Wu/Cloudseeding/Cloud Seeding"
+	global dir "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding/Cloud Seeding"
 }
 else {
 	global dir ""
@@ -33,8 +33,8 @@ global data "$dir/data"
 ***************************************************************************************************
 // define output directories
 global data_tem "$data/tem/match/pm_5_int"
-global final "/Users/anora/Library/CloudStorage/Dropbox-TeamMG/Wanru Wu/Cloudseeding_Anora/SSF/final/match_y"
-global output "/Users/anora/Library/CloudStorage/Dropbox-TeamMG/Wanru Wu/Cloudseeding_Anora/SSF/output/match_y"
+global final "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/final/match_y"
+global output "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/output/match_y"
 
 
 
@@ -124,10 +124,10 @@ foreach var of local varlist {
 	`var'_1==0 & `var'_2==0 & `var'_3==0 & `var'_4==0 & `var'_5==0 & `var'_6==0 & `var'_7==0 
 	
 
-	* Drop treatments that occur within 14 days of the first cloud seeding event at a given location
+	* Drop treatments that occur within 17 days of the first cloud seeding event at a given location
 	gen date = mdy(month, day, year)
 	gen drop_flag = 0
-	bysort dt_adcode ct_adcode pr_adcode (date): replace drop_flag = 1 if _n > 1 & date - date[_n-1] <= 14	
+	bysort dt_adcode ct_adcode pr_adcode (date): replace drop_flag = 1 if _n > 1 & date - date[_n-1] <= 17	
 	drop if drop_flag == 1 
 	drop drop_flag
 
@@ -292,7 +292,7 @@ foreach var of local varlist {
 	graph export "$output/psm_`var'_match_y.png", width(2200) height(1600) replace 
 	
 	
-	* histograms
+	* cdf
 	foreach x of numlist 0/3 7 10 {
 		
 		use "$final/psm_10days.dta", clear
@@ -300,32 +300,66 @@ foreach var of local varlist {
 		
 		* define post group
 		local cut = `x' + 7
-		drop if event > `cut'
 		
-		gen post = event >= 7
-		label var post "Post period (event>=0)"
-		label define postlbl 0 "Pre" 1 "Post"
-		label values post postlbl
+		keep if event == `cut' | event < 7
+		gen post = event == `cut'
+		
+		if ("`var'" == "fraction") {
+			
+			* Pre period: treated vs control
+			cumul `var' if imply==0 & post==0, gen(cdf_ctrl_pre)
+			cumul `var' if imply==1 & post==0, gen(cdf_trt_pre)
 
-		* define treated group
-		label define trtlbl 0 "Control" 1 "Treated"
-		label values imply trtlbl
+			twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue)) ///
+				   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red)), ///
+				   legend(order(1 "Control" 2 "Treated")) ///
+				   title("Pre-treatment") name(g_pre, replace) ///
+				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
+				   xscale(range(0 1)) xlabel(0(0.2)1)
 
-		hist `var' if imply==0 & post==0, percent width(0.2)  ///
-			title("Control - Pre") name(g1, replace)
+			* Post period: treated vs control
+			cumul `var' if imply==0 & post==1, gen(cdf_ctrl_post)
+			cumul `var' if imply==1 & post==1, gen(cdf_trt_post)
 
-		hist `var' if imply==0 & post==1, percent width(0.2)  ///
-			title("Control - Post") name(g2, replace)
+			twoway (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue)) ///
+				   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red)), ///
+				   legend(order(1 "Control" 2 "Treated")) ///
+				   title("Post-treatment (day `x')") name(g_post, replace) ///
+				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
+				   xscale(range(0 1)) xlabel(0(0.2)1)
+				  
+		
+		}
 
-		hist `var' if imply==1 & post==0, percent width(0.2)  ///
-			title("Treated - Pre") name(g3, replace)
+		else{
+			
+			* Pre period: treated vs control
+			cumul `var' if imply==0 & post==0, gen(cdf_ctrl_pre)
+			cumul `var' if imply==1 & post==0, gen(cdf_trt_pre)
 
-		hist `var' if imply==1 & post==1, percent width(0.2)  ///
-			title("Treated - Post") name(g4, replace)
+			twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue)) ///
+				   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red)), ///
+				   legend(order(1 "Control" 2 "Treated")) ///
+				   title("Pre-treatment") name(g_pre, replace) ///
+				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
+				   xscale(range(0 150)) xlabel(0(30)150)
 
-		graph combine g1 g2 g3 g4, col(2) title("Distribution of `: variable label `var''") ///
-		    note("Post includes post `x' days after treatment.", position(7))
-		graph export "/Users/anora/Library/CloudStorage/Dropbox-TeamMG/Wanru Wu/Cloudseeding_Anora/SSF/output/histograms/psm_histogram_`var'_`x'.png", width(2200) height(1600) replace 
+			* Post period: treated vs control
+			cumul `var' if imply==0 & post==1, gen(cdf_ctrl_post)
+			cumul `var' if imply==1 & post==1, gen(cdf_trt_post)
+
+			twoway (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue)) ///
+				   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red)), ///
+				   legend(order(1 "Control" 2 "Treated")) ///
+				   title("Post-treatment (day `x')") name(g_post, replace) ///
+				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
+				   xscale(range(0 150)) xlabel(0(30)150)
+		}
+	
+		graph combine g_pre g_post, col(2) ///
+			title("Empirical CDF of `: variable label `var'' - `x' days", size(small))
+		graph export "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/output/cdf/psm_cdf_`var'_`x'.png", width(4000) height(2600) replace
+		
   	}
 
 
