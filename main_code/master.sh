@@ -22,11 +22,21 @@ export CHECK=True
 # CHANGE TO YOUR OWN DIRECTORY 
 cd "/Users/anora/Documents/Github/Energy_Flux/main_code"
 
+### jiangxi_shape.py
+# Purpose: create the shapefile for Jiangxi Province  
+# Input: 
+# 1. {data_fir}/township_shapefile/xiangzhen.shp
+# Output:
+# 1. {data_fir}/jiangxi_shapefile/jiangxi_shape.csv
+
+python clean_town_operation.py
+
 ### clean_town_operation.py
 # Purpose: clean and combine town operation data from 2021 to 2025. 
 # Input: 
 # 1. {data_fir}/operation/{year}.xls
 # 2. {data_fir}/operation/{year}.xlsx
+# 3. {data_fir}/township_shapefile/xiangzhen.shp
 # Output:
 # 1. {data_fir}/intermediate/cleaned_operation.csv
 
@@ -43,6 +53,6 @@ python clean_town_operation.py
 # 2. {data_dir}/intermediate/jx_grid.csv
 # 3. {data_dir}/intermediate/grid_with_operation.csv
 
-# python merge_town_to_grid.py
+python merge_town_to_grid.py
 
 
