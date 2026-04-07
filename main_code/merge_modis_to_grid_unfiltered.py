@@ -67,7 +67,6 @@ for year in range(2020,2023):
     # This will skip NA values when calculating means
     df_1km_ave = df_1km.groupby(['time','cell_id']).mean().reset_index()
 
-
     panel_dic[f"{year}"] = pd.merge(panel_dic[f"{year}"], df_1km_ave, on = ['time','cell_id'], how = "left")
 
 
