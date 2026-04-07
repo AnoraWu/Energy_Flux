@@ -127,7 +127,7 @@ foreach var of local varlist {
 	* Drop treatments that occur within 17 days of the first cloud seeding event at a given location
 	gen date = mdy(month, day, year)
 	gen drop_flag = 0
-	bysort dt_adcode ct_adcode pr_adcode (date): replace drop_flag = 1 if _n > 1 & date - date[_n-1] <= 17	
+	bysort dt_adcode ct_adcode pr_adcode (date): replace drop_flag = 1 if _n > 1 & date - date[_n-1] <= 17
 	drop if drop_flag == 1 
 	drop drop_flag
 
@@ -306,25 +306,18 @@ foreach var of local varlist {
 		
 		if ("`var'" == "fraction") {
 			
-			* Pre period: treated vs control
 			cumul `var' if imply==0 & post==0, gen(cdf_ctrl_pre)
 			cumul `var' if imply==1 & post==0, gen(cdf_trt_pre)
-
-			twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue)) ///
-				   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red)), ///
-				   legend(order(1 "Control" 2 "Treated")) ///
-				   title("Pre-treatment") name(g_pre, replace) ///
-				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
-				   xscale(range(0 1)) xlabel(0(0.2)1)
-
-			* Post period: treated vs control
 			cumul `var' if imply==0 & post==1, gen(cdf_ctrl_post)
 			cumul `var' if imply==1 & post==1, gen(cdf_trt_post)
 
-			twoway (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue)) ///
-				   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red)), ///
-				   legend(order(1 "Control" 2 "Treated")) ///
-				   title("Post-treatment (day `x')") name(g_post, replace) ///
+			* Combined graph: dashed for pre, solid for post
+			twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue) lpattern(dash)) ///
+				   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red) lpattern(dash)) ///
+				   (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue) lpattern(solid)) ///
+				   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red) lpattern(solid)), ///
+				   legend(order(1 "Control (Pre)" 2 "Treated (Pre)" 3 "Control (Post)" 4 "Treated (Post)") rows(2)) ///
+				   title("CDF: Pre vs Post Treatment (day `x')") name(g_combined, replace) ///
 				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
 				   xscale(range(0 1)) xlabel(0(0.2)1)
 				  
@@ -333,31 +326,22 @@ foreach var of local varlist {
 
 		else{
 			
-			* Pre period: treated vs control
 			cumul `var' if imply==0 & post==0, gen(cdf_ctrl_pre)
 			cumul `var' if imply==1 & post==0, gen(cdf_trt_pre)
-
-			twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue)) ///
-				   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red)), ///
-				   legend(order(1 "Control" 2 "Treated")) ///
-				   title("Pre-treatment") name(g_pre, replace) ///
-				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
-				   xscale(range(0 150)) xlabel(0(30)150)
-
-			* Post period: treated vs control
 			cumul `var' if imply==0 & post==1, gen(cdf_ctrl_post)
 			cumul `var' if imply==1 & post==1, gen(cdf_trt_post)
 
-			twoway (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue)) ///
-				   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red)), ///
-				   legend(order(1 "Control" 2 "Treated")) ///
-				   title("Post-treatment (day `x')") name(g_post, replace) ///
+			* Combined graph: dashed for pre, solid for post
+			twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue) lpattern(dash)) ///
+				   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red) lpattern(dash)) ///
+				   (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue) lpattern(solid)) ///
+				   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red) lpattern(solid)), ///
+				   legend(order(1 "Control (Pre)" 2 "Treated (Pre)" 3 "Control (Post)" 4 "Treated (Post)") rows(2)) ///
+				   title("CDF: Pre vs Post Treatment (day `x')") name(g_combined, replace) /// 
 				   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
 				   xscale(range(0 150)) xlabel(0(30)150)
 		}
 	
-		graph combine g_pre g_post, col(2) ///
-			title("Empirical CDF of `: variable label `var'' - `x' days", size(small))
 		graph export "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/output/cdf/psm_cdf_`var'_`x'.png", width(4000) height(2600) replace
 		
   	}
