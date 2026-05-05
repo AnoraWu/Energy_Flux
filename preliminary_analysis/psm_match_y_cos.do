@@ -92,11 +92,11 @@ gen rain_pre1 = int(1*l1.rain_IDW)
 replace pre_mars = int(1*pre_mars)
 
 forval i = 1/7 {
-	gen sw_toa_flux_up_norm_`i' = round(l`i'.sw_toa_flux_up, 20)
+	gen sw_toa_flux_up_norm_`i' = round(l`i'.sw_toa_flux_up_norm, 100)
 }
 
 forval i = 1/7 {
-	gen net_sw_surface_flux_norm_`i' = round(l`i'.net_sw_surface_flux, 100)
+	gen net_sw_surface_flux_norm_`i' = round(l`i'.net_sw_surface_flux_norm, 100)
 }
 
 
@@ -305,33 +305,67 @@ foreach var of local varlist {
 	*** draw empirical cdf
 	foreach x of numlist 0/3 7 10 {
 
-    use "$final/psm_10days.dta", clear
-    gen event = refy+7
+		use "$final/psm_10days.dta", clear
+		gen event = refy+7
 
-    local cut = `x' + 7
+		local cut = `x' + 7
 
-    keep if event == `cut' | event < 7
-    gen post = event == `cut'
+		keep if event == `cut' | event < 7
+		gen post = event == `cut'
 
-    * Pre period: treated vs control
-	cumul `var' if imply==0 & post==0, gen(cdf_ctrl_pre)
-	cumul `var' if imply==1 & post==0, gen(cdf_trt_pre)
-	cumul `var' if imply==0 & post==1, gen(cdf_ctrl_post)
-	cumul `var' if imply==1 & post==1, gen(cdf_trt_post)
+		* Pre period: treated vs control
+		cumul `var' if imply==0 & post==0, gen(cdf_ctrl_pre)
+		cumul `var' if imply==1 & post==0, gen(cdf_trt_pre)
+		cumul `var' if imply==0 & post==1, gen(cdf_ctrl_post)
+		cumul `var' if imply==1 & post==1, gen(cdf_trt_post)
 
-	* Combined graph: dashed for pre, solid for post
-	twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue) lpattern(dash)) ///
-		   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red) lpattern(dash)) ///
-		   (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue) lpattern(solid)) ///
-		   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red) lpattern(solid)), ///
-		   legend(order(1 "Control (Pre)" 2 "Treated (Pre)" 3 "Control (Post)" 4 "Treated (Post)") rows(2)) ///
-		   title("CDF: Pre vs Post Treatment (day `x')") name(g_combined, replace) ///
-		   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
-		   xscale(range(0 1000)) xlabel(0(200)1000)
-				   
-    graph export "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/output/cdf/psm_cdf_`var'_`x'.png", width(4000) height(2600) replace
+		* Combined graph: dashed for pre, solid for post
+		twoway (line cdf_ctrl_pre `var' if imply==0 & post==0, sort lcolor(blue) lpattern(dash)) ///
+			   (line cdf_trt_pre `var' if imply==1 & post==0, sort lcolor(red) lpattern(dash)) ///
+			   (line cdf_ctrl_post `var' if imply==0 & post==1, sort lcolor(blue) lpattern(solid)) ///
+			   (line cdf_trt_post `var' if imply==1 & post==1, sort lcolor(red) lpattern(solid)), ///
+			   legend(order(1 "Control (Pre)" 2 "Treated (Pre)" 3 "Control (Post)" 4 "Treated (Post)") rows(2)) ///
+			   title("CDF: Pre vs Post Treatment (day `x')") name(g_combined, replace) ///
+			   xtitle("`: variable label `var''") ytitle("Cumulative Probability") ///
+			   xscale(range(0 1000)) xlabel(0(200)1000)
+					   
+		graph export "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/output/cdf/psm_cdf_`var'_`x'.png", width(4000) height(2600) replace
+		
+		* quantile-quantile plot
+		* Generate quantiles for each group
+		pctile q_ctrl = `var' if imply == 0 & post == 1, nq(100)
+		pctile q_trt  = `var' if imply == 1 & post == 1, nq(100)
+
+		* Q-Q plot
+		twoway (scatter q_trt q_ctrl, msize(small) mcolor(navy)) ///
+			   (function y = x, range(0 1400) lcolor(red) lpattern(dash)), ///
+			   xtitle("Control Quantiles") ytitle("Treated Quantiles") ///
+			   title("Q-Q Plot: Post-Treatment Control vs Treated (day `x')") ///
+			   legend(order(1 "Observed" 2 "45° line") rows(1)) ///
+			   name(g_qq, replace)
+			   
+		graph export "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/output/qqplot/psm_qqplot_`var'_`x'.png", width(4000) height(2600) replace
+				  
 	}
+	
+	use "$final/psm_10days.dta", clear
+	gen event = refy+7
+	gen post = event >= 7
+	
+	* quantile-quantile plot
+	* Generate quantiles for each group
+	pctile q_ctrl = `var' if imply == 0 & post == 0, nq(100)
+	pctile q_trt  = `var' if imply == 1 & post == 0, nq(100)
 
+	* Q-Q plot
+	twoway (scatter q_trt q_ctrl, msize(small) mcolor(navy)) ///
+		   (function y = x, range(0 1400) lcolor(red) lpattern(dash)), ///
+		   xtitle("Control Quantiles") ytitle("Treated Quantiles") ///
+		   title("Q-Q Plot: Pre-Treatment Control vs Treated") ///
+		   legend(order(1 "Observed" 2 "45° line") rows(1)) ///
+		   name(g_qq, replace)
+		   
+	graph export "/Users/anora/Team MG Dropbox/Wanru Wu/Cloudseeding_Anora/SSF/output/qqplot/psm_qqplot_`var'_pre.png", width(4000) height(2600) replace
 
 	restore
 }
