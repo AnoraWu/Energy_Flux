@@ -1,7 +1,7 @@
 import geopandas as gpd
+import os
 
-data_dir = '/Users/anora/Team MG Dropbox/Wanru Wu/Energy_Flux'
-# data_dir = os.environ['DATA_DIR']
+data_dir = os.environ['DATA_DIR']
 
 # Load township data
 townshape = gpd.read_file(f"{data_dir}/township_shapefile/xiangzhen.shp")
