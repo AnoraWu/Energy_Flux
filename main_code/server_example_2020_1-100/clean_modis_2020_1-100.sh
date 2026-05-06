@@ -18,4 +18,4 @@ module load parallel
 source /software/python-anaconda-2022.05-el8-x86_64/etc/profile.d/conda.sh
 conda activate r441
 
-python /project/mgreenst/energy_flux/code/clean_modis_2020_1-100.py
+python /project/mgreenst/energy_flux/code/2020_1-100/clean_modis_2020_1-100.py
