@@ -1,49 +1,51 @@
 ## Data Processing Pipeline — Jiangxi Cloud Seeding Study
 
-**Author:** Anora Wu | **Updated:** May 2026
+**Author:** Anora Wu | **Contact:** AnoraaaBiu@outlook.com | **Updated:** May 2026
 
 ### Overview
 
-This pipeline constructs a spatially-gridded panel dataset covering Jiangxi Province, China (2020–2025) to study the effects of cloud seeding operations. It combines administrative operation records with satellite-derived cloud property data on a common 5 km × 5 km spatial grid.
+This pipeline constructs a spatially-gridded panel dataset covering Jiangxi Province, China (2020–2025) to study the effects of cloud seeding operations on cloud properties. It links administrative cloud seeding operation records with MODIS satellite observations on a common 5 km × 5 km spatial grid at hourly resolution.
+
+The entry point is `master.sh`. Before running, set `DATA_DIR` to your local Dropbox path and update the `cd` path to your repository clone.
 
 ---
 
-### Step 1: Clean Cloud Seeding Operation Records (`clean_town_operation.py`)
+### Step 0: `jiangxi_shape.py`
 
-- **Input:** Annual Excel files of cloud seeding operations (2020–2025).
-- **Process:** Standardizes column names across two distinct formats (2020 vs. 2021–2025). Performs a spatial join against a township-level shapefile to assign each operation to its corresponding township in Jiangxi Province.
-- **Output:** `intermediate/cleaned_operation.csv` — a unified, cleaned record of all operations with each operation's latitude, longitude, and other information.
+The raw administrative shapefile covers all townships in China. This script dissolves those township polygons into a single unified boundary for Jiangxi Province. The resulting polygon becomes the shared spatial reference for the entire pipeline — used to clip the analysis grid, filter operations, and mask satellite pixels outside the province.
 
 ---
 
-### Step 2: Construct the Spatial Grid and Merge Operations (`merge_town_to_grid.py`)
+### Step 1: `clean_town_operation.py`
 
-- **Input:** Jiangxi province shapefile; `cleaned_operation.csv`.
-- **Process:**
-  1. Projects the Jiangxi boundary to UTM Zone 50N (EPSG:32650) and subdivides it into a 5 km × 5 km grid, retaining only cells that intersect the province.
-  2. Creates a balanced panel: every combination of grid cell × calendar date from 2020-01-01 to 2025-12-31.
-  3. Geocodes each operation record to its grid cell and counts the number of operations per cell per day.
-  4. Optionally generates diagnostic plots (grid map, spatial distribution of operations).
-- **Output:**
-  - `intermediate/jx_grid.gpkg` / `jx_grid.csv` — the grid geometry and identifiers.
-  - `intermediate/grid_with_operation.csv` — the full panel with daily operation counts per grid cell.
+Cloud seeding operation records span six years (2020–2025) but arrive in inconsistent Excel formats with different column schemas. This script standardizes them into a single dataset and spatially joins each operation to its containing township using the Jiangxi shapefile. The spatial join (rather than relying on text fields in the records) prevents errors from ambiguous or misspelled place names. An optional diagnostic histogram (`CHECK=True`) verifies that operation counts are plausible across years.
 
 ---
 
-### Step 3: Process MODIS Satellite Cloud Data (`merge_modis_to_grid.py`)
+### Step 2: `merge_town_to_grid.py`
 
-- **Input:** MODIS Level-2 MOD06\_L2 HDF4 swath files; MOD03 geolocation files for 1 km products.
-- **Process:**
-  1. Reads raw Level-2 swath data for two resolutions:
-     - **5 km:** Cloud Fraction, Cloud Fraction Day/Night.
-     - **1 km:** Cloud Optical Thickness and its uncertainty (requires paired MOD03 geolocation files; filters by retrieval quality, cloud phase, and confidence flags from the QA bitmask).
-  2. Projects pixel coordinates to EPSG:32650 and bins observations onto the same 5 km grid using 2D histograms, computing daily mean values per cell.
-  3. Interpolates residual within-province gaps using linear spatial interpolation; masks all pixels outside the Jiangxi boundary.
-  4. Parallelizes processing across all days and variables using Python `multiprocessing.Pool`, configured for SLURM HPC environments.
-- **Output:** `intermediate/modis_panel_YYYY.pkl` — a serialized DataFrame with daily, gridded MODIS cloud variables (raw and gap-filled) aligned to the same `cell_id` index as the operation panel.
+This step defines the panel structure that everything else aligns to. The Jiangxi boundary is projected to UTM Zone 50N (EPSG:32650) — the appropriate metric CRS for Jiangxi's longitude range — so that the 5 km grid can be constructed in meters. Each grid cell receives an ID based on its position in the grid.
+
+Operation records are mapped into this grid and aggregated to hourly counts per cell. Because a seeding operation spans a time window, two versions are produced for each year: one using the operation's start hour and one using its end hour. This allows downstream analysis to test different assumptions about when seeding takes effect. Each year's panel is saved separately to keep memory use manageable.
 
 ---
 
-### Pipeline (`master.sh`)
+### Step 3: Server-side MODIS Processing (`server_example_2020_1-100/`)
 
-A shell script sets the data directory, optionally enables diagnostic checks, and runs the three steps in sequence. It is designed to be reproducible by other users by changing only the `DATA_DIR` and working directory variables.
+MODIS Level-2 swath data is too large to process locally. These steps run on the UChicago RCC cluster. The scripts in `server_example_2020_1-100/` cover days 1–100 of 2020 as an example; the full set of scripts for all dates is at `/project/mgreenst/energy_flux/code/` on the server.
+
+**Download** (`download_2020_1-100.sh`): Fetches MOD06_L2 (cloud properties) and MOD03 (geolocation) HDF4 files from NASA for the target dates.
+
+**Verify** (`check_download_2020_1-100.sh`): Downloads are sometimes silently incomplete. This script checks that every expected file arrived and logs any gaps.
+
+**Extract** (`clean_modis_2020_1-100.sh`): Reads the HDF4 files and converts the relevant cloud variables — cloud fraction at 5 km resolution, cloud optical thickness and its quality flags at 1 km — into flat CSV files keyed by date.
+
+**Validate fill values** (`check_cloud_top_fill_2025.sh`): Per the MODIS 6.1 User Guide (p. 89, in Dropbox at `Energy_Flux/modis_l2/Documentation/`), cloud optical thickness retrievals whose corresponding 1 km cloud-top temperature or pressure is set to a fill value should be discarded. This script confirms those entries are absent. Checks were run for 2024–2025; server logs confirm no such entries survive in those years.
+
+---
+
+### Step 4: `merge_modis_to_grid_unfiltered.py`
+
+This script merges the processed MODIS CSV files onto the panel created in Step 2. MODIS pixels are mapped to grid cells using the same coordinate formula as the operations (EPSG:32650, 5 km bins), so the spatial indexing is consistent. Multiple pixels falling in the same cell and hour are averaged. Both 1 km (cloud optical thickness) and 5 km (cloud fraction) variables are joined.
+
+**Note on `merge_modis_to_grid.py`:** An earlier version of this script applied MODIS quality assurance bit-flag filtering, retaining only pixels marked "useful" by the QA bitmask. This version has been superseded by `merge_modis_to_grid_unfiltered.py` because the QA filter was found to introduce systematic biases — it selectively removes observations under specific atmospheric conditions in a way that is correlated with cloud properties, distorting the analysis. For the methodological details and evidence, see `Cloud_Fraction_Report.tex` in the Energy_Flux project on Overleaf.
