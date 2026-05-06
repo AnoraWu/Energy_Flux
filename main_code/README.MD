@@ -1,6 +1,6 @@
 ## Data Processing Pipeline — Jiangxi Cloud Seeding Study
 
-**Author:** Anora Wu | **Updated:** Feb 2026
+**Author:** Anora Wu | **Updated:** May 2026
 
 ### Overview
 
