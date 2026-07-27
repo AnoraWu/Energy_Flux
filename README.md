@@ -3,8 +3,9 @@ For datasets used in the scripts, please find them in the [dropbox directory](ht
 
 ### Folder Description:
 #### main_code
-This folder contains the main code used for data construction and analysis in the paper.
+This folder contains the main code used for data construction and analysis in the paper. Detailed description README.MD included in the folder.
 #### preliminary_analysis
-This folder contains the code used for doing preliminary analysis.
+This folder contains the code used for doing preliminary analysis. Detailed description README.MD included in the folder.
 #### test
 This folder contains scripts used for testing. Self-use only.  
+
